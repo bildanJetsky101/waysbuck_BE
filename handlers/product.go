@@ -10,6 +10,7 @@ import (
 	"waysbuck/repositories"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 )
 
@@ -54,10 +55,56 @@ func (h *handlerProduct) GetProduct(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
+// 	w.Header().Set("Content-Type", "application/json")
+
+// 	request := new(productsdto.CreateProductRequest)
+// 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+// 		json.NewEncoder(w).Encode(response)
+// 		return
+// 	}
+
+// 	validation := validator.New()
+// 	err := validation.Struct(request)
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+// 		json.NewEncoder(w).Encode(response)
+// 		return
+// 	}
+
+// 	// data form pattern submit to pattern entity db user
+// 	product := models.Product{
+// 		Name:   request.Name,
+// 		Desc:   request.Desc,
+// 		UserID: request.UserID,
+// 		Price:  request.Price,
+// 		Qty:    request.Qty,
+// 		Image:  request.Image,
+// 		//Category: request.Category,
+// 	}
+
+// 	data, err := h.ProductRepository.CreateProduct(product)
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		json.NewEncoder(w).Encode(err.Error())
+// 	}
+
+// 	w.WriteHeader(http.StatusOK)
+// 	response := dto.SuccessResult{Code: http.StatusOK, Data: convertResponseProduct(data)}
+// 	json.NewEncoder(w).Encode(response)
+// }
+
 func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	request := new(productsdto.CreateProductRequest)
+	// get data user token
+	userInfo := r.Context().Value("userInfo").(jwt.MapClaims)
+	userId := int(userInfo["id"].(float64))
+
+	request := new(productsdto.ProductRequest)
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
@@ -68,31 +115,33 @@ func (h *handlerProduct) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	validation := validator.New()
 	err := validation.Struct(request)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response := dto.ErrorResult{Code: http.StatusBadRequest, Message: err.Error()}
+		w.WriteHeader(http.StatusInternalServerError)
+		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
 		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	// data form pattern submit to pattern entity db user
 	product := models.Product{
 		Name:   request.Name,
 		Desc:   request.Desc,
-		UserID: request.UserID,
 		Price:  request.Price,
-		Qty:    request.Qty,
 		Image:  request.Image,
-		//Category: request.Category,
+		Qty:    request.Qty,
+		UserID: userId,
 	}
 
-	data, err := h.ProductRepository.CreateProduct(product)
+	product, err = h.ProductRepository.CreateProduct(product)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err.Error())
+		response := dto.ErrorResult{Code: http.StatusInternalServerError, Message: err.Error()}
+		json.NewEncoder(w).Encode(response)
+		return
 	}
 
+	product, _ = h.ProductRepository.GetProduct(product.ID)
+
 	w.WriteHeader(http.StatusOK)
-	response := dto.SuccessResult{Code: http.StatusOK, Data: convertResponseProduct(data)}
+	response := dto.SuccessResult{Code: http.StatusOK, Data: product}
 	json.NewEncoder(w).Encode(response)
 }
 
